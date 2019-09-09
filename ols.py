@@ -85,11 +85,14 @@ def olsStep(x, hfftconj, starts: List[int], lengths: List[int], nfft: List[int],
     xpart = x[slices]
   else:
     xpart = np.zeros(np.array(lengths) + np.array(nh) - 1, dtype=x.dtype)
+    # We want `x[slices]` to get zeros for any negative indexes it encounters
     full = tuple(slice(max(s.start, 0), s.stop) for s in slices)
     xview = x[full]
-    chunk = tuple(slice(0, shape) for shape in xview.shape)
+    # We now have the non-zero portion of the input. We must pad top/left with zeros
+    chunk = tuple(
+        slice(0 if s.start >= 0 else -s.start, shape if s.start >= 0 else -s.start + shape)
+        for s, shape in zip(slices, xview.shape))
     xpart[chunk] = xview
-    xpart = np.roll(xpart, [0 if s.start >= 0 else -s.start for s in slices], range(xpart.ndim))
   output = np.fft.irfftn(np.fft.rfftn(xpart, nfft) * hfftconj, nfft)
   return output[tuple(slice(0, s) for s in lengths)]
 
