@@ -14,6 +14,9 @@ When it can be used as a drop-in replacement for `fftconvolve`:
 - when you call `fftconvolve` with `mode='same'` and `axes=None`
 - [See docs](https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.fftconvolve.html)
 
+**Installation** `$ pip install overlap_save` then `import ols`.
+
+**Usage**
 Example (culled from unit tests):
 ```py
 import numpy as np
