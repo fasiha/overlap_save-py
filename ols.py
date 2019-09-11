@@ -41,7 +41,7 @@ assert np.allclose(expected, actual)
 
 import numpy as np
 from nextprod import nextprod
-from arrayRange import arrayRange
+from array_range import array_range
 from typing import List
 
 
@@ -108,6 +108,6 @@ def ols(x, h, size=None, nfft=None, out=None):
   if out is None:
     out = np.zeros(x.shape, dtype=x.dtype)
 
-  for tup in arrayRange([0 for _ in out.shape], out.shape, size):
+  for tup in array_range([0 for _ in out.shape], out.shape, size):
     out[tup] = olsStep(x, hpre, [s.start for s in tup], size, nfft, h.shape)
   return out
