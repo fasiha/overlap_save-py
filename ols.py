@@ -55,7 +55,35 @@ def prepareh(h, nfft: List[int]):
   return np.conj(np.fft.rfftn(np.flip(h), nfft))
 
 
-def olsStep(x, hfftconj, starts: List[int], lengths: List[int], nfft: List[int], nh: List[int]):
+def slice2range(s: slice):
+  "Convert slice to range"
+  return range(s.start, s.stop, s.step or 1)
+
+
+def padEdges(x, slices, mode='constant', **kwargs):
+  """Wrapper around `np.pad`
+
+  This wrapper seeks to call `np.pad` with the smallest amount of data as needed, as dictated by `slices`.
+  """
+  if all(map(lambda s: s.start >= 0, slices)):
+    return x[slices]
+  maxs = tuple(slice(0, max(np.abs(s.start), np.abs(s.stop))) if s.start < 0 else s for s in slices)
+  beforeAfters = [(-s.start if s.start < 0 else 0, np.maximum(0, s.stop - xdim))
+                  for (s, xdim) in zip(slices, x.shape)]
+  xpadded = np.pad(x[maxs], beforeAfters, mode=mode, **kwargs)
+  # we now have an array that's padded just right to the top/left but maybe too big bottom/right
+  firsts = tuple(slice(0, len(slice2range(s))) for s in slices)
+  return xpadded[firsts]
+
+
+def olsStep(x,
+            hfftconj,
+            starts: List[int],
+            lengths: List[int],
+            nfft: List[int],
+            nh: List[int],
+            mode='constant',
+            **kwargs):
   """Implements a single step of the overlap-save algorithm
 
   Given an entire signal array `x` and the pre-transformed filter array
@@ -71,6 +99,15 @@ def olsStep(x, hfftconj, starts: List[int], lengths: List[int], nfft: List[int],
 
   The lists `starts`, `lengths`, `nft`, and `nh` are all required to be the same
   length, matching the number of dimensions of `x` and `hfftconj`.
+
+  `mode` and `**kwargs` are passed to `numpy.pad`, see
+  https://docs.scipy.org/doc/numpy/reference/generated/numpy.pad.html
+  The default, `'constant'` will treat values outside the bounds of `x` as
+  constant, and specifically zero. This matches the standard definition of
+  convolution. However, other useful alternatives might be:
+  - `'reflect'` where the input `x` is reflected infinitely in all dimensions or 
+  - `'wrap'` where the input is assumed to be toroidal: moving off the edge in
+    one direction makes you reappear on the opposite edge.
   """
   assert len(x.shape) == len(hfftconj.shape)
   assert len(x.shape) == len(starts) and len(x.shape) == len(lengths)
@@ -81,23 +118,12 @@ def olsStep(x, hfftconj, starts: List[int], lengths: List[int], nfft: List[int],
   slices = tuple(
       slice(start - border, start + length + nh - 1 - border)
       for (start, length, nh, border) in zip(starts, lengths, nh, border))
-  if all(map(lambda s: s.start >= 0, slices)):
-    xpart = x[slices]
-  else:
-    xpart = np.zeros(np.array(lengths) + np.array(nh) - 1, dtype=x.dtype)
-    # We want `x[slices]` to get zeros for any negative indexes it encounters
-    full = tuple(slice(max(s.start, 0), s.stop) for s in slices)
-    xview = x[full]
-    # We now have the non-zero portion of the input. We must pad top/left with zeros
-    chunk = tuple(
-        slice(0 if s.start >= 0 else -s.start, shape if s.start >= 0 else -s.start + shape)
-        for s, shape in zip(slices, xview.shape))
-    xpart[chunk] = xview
+  xpart = padEdges(x, slices, mode=mode, **kwargs)
   output = np.fft.irfftn(np.fft.rfftn(xpart, nfft) * hfftconj, nfft)
   return output[tuple(slice(0, s) for s in lengths)]
 
 
-def ols(x, h, size=None, nfft=None, out=None):
+def ols(x, h, size=None, nfft=None, out=None, mode='constant', **kwargs):
   assert len(x.shape) == len(h.shape)
   size = size or [4 * x for x in h.shape]
   nfft = nfft or [nextprod([2, 3, 5, 7], size + nh - 1) for size, nh in zip(size, h.shape)]
@@ -109,5 +135,5 @@ def ols(x, h, size=None, nfft=None, out=None):
     out = np.zeros(x.shape, dtype=x.dtype)
 
   for tup in array_range([0 for _ in out.shape], out.shape, size):
-    out[tup] = olsStep(x, hpre, [s.start for s in tup], size, nfft, h.shape)
+    out[tup] = olsStep(x, hpre, [s.start for s in tup], size, nfft, h.shape, mode=mode, **kwargs)
   return out
