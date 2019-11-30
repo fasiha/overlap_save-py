@@ -60,7 +60,7 @@ def slice2range(s: slice):
   return range(s.start, s.stop, s.step or 1)
 
 
-def maxsReflect(x, slices):
+def edgesReflect(x, slices):
   starts = [
       0 if s.start < 0 else np.min([s.start, xdim - (s.stop - xdim)])
       for (s, xdim) in zip(slices, x.shape)
@@ -68,11 +68,11 @@ def maxsReflect(x, slices):
   stops = [
       xdim if s.stop > xdim else np.max([s.stop, -s.start]) for (s, xdim) in zip(slices, x.shape)
   ]
-  maxs = tuple(slice(lo, hi) for (lo, hi) in zip(starts, stops))
-  return maxs
+  edges = tuple(slice(lo, hi) for (lo, hi) in zip(starts, stops))
+  return edges
 
 
-def maxsConstant(x, slices):
+def edgesConstant(x, slices):
   return tuple(
       slice(np.maximum(0, s.start), np.minimum(xdim, s.stop)) for (s, xdim) in zip(slices, x.shape))
 
@@ -87,12 +87,12 @@ def padEdges(x, slices, mode='constant', **kwargs):
   beforeAfters = [(-s.start if s.start < 0 else 0, s.stop - xdim if s.stop > xdim else 0)
                   for (s, xdim) in zip(slices, x.shape)]
   if mode == 'constant':
-    maxs = maxsConstant(x, slices)
+    edges = edgesConstant(x, slices)
   elif mode == 'reflect':
-    maxs = maxsReflect(x, slices)
+    edges = edgesReflect(x, slices)
   else:
     assert False
-  xpadded = np.pad(x[maxs], beforeAfters, mode=mode, **kwargs)
+  xpadded = np.pad(x[edges], beforeAfters, mode=mode, **kwargs)
   # we now have an array that's padded just right to the top/left but maybe too big bottom/right
   firsts = tuple(slice(0, len(slice2range(s))) for s in slices)
   return xpadded[firsts]
