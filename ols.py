@@ -7,6 +7,8 @@ Features:
   - (Currently unsupported is convolving different-dimensional signals)
 - Memory-mapped input/outputs fully supported (and tested)
 - Supports alternative FFT engines such as PyFFTW
+- Supports reflect-mode (signal assumed to reflect infinitely, instead of 0
+  outside its support; useful for avoiding edge effects)
 - Relatively straightforward to paralellize each step of the algorithm
 - Extensively unit-tested
 
@@ -48,7 +50,7 @@ from typing import List
 
 def prepareh(h, nfft: List[int], rfftn=None):
   """Pre-process a filter array
-  
+
   Given a real filter array `h` and the length of the FFT `nfft`,
   returns the frequency-domain array. Needs to be computed
   only once before all steps of the overlap-save algorithm run.
@@ -65,6 +67,7 @@ def slice2range(s: slice):
 
 
 def edgesReflect(x, slices):
+  "Find the edges of `x` that np.pad in *REFLECT* mode will need"
   starts = [
       0 if s.start < 0 else np.min([s.start, xdim - (s.stop - xdim)])
       for (s, xdim) in zip(slices, x.shape)
@@ -77,6 +80,7 @@ def edgesReflect(x, slices):
 
 
 def edgesConstant(x, slices):
+  "Find the edges of `x` that np.pad in CONSTANT mode will need"
   return tuple(
       slice(np.maximum(0, s.start), np.minimum(xdim, s.stop)) for (s, xdim) in zip(slices, x.shape))
 
@@ -136,7 +140,7 @@ def olsStep(x,
   The default, `'constant'` will treat values outside the bounds of `x` as
   constant, and specifically zero. This matches the standard definition of
   convolution. However, other useful alternatives are supported:
-  - `'reflect'` where the input `x` is reflected infinitely in all dimensions or 
+  - `'reflect'` where the input `x` is reflected infinitely in all dimensions or
 
   N.B. These are the only modes supported by this module. Others are
   *UNSUPPORTED*.
@@ -160,7 +164,45 @@ def olsStep(x,
 
 
 def ols(x, h, size=None, nfft=None, out=None, rfftn=None, irfftn=None, mode='constant', **kwargs):
-  """Perform overlap-save fast-convolution
+  """Perform multidimensional overlap-save fast-convolution.
+
+  As mentioned in the module docstring, the output of this function will be
+  within machine precision of `scipy.signal.fftconvolve(x, h, mode='same')`.
+
+  However, rather than computing three potentially-large FFTs (one for `x`, one
+  for `h`, and an inverse FFT for their product), the overlap-save algorithm
+  performs a sequence of smaller FFTs. This makes it appropriate for situations
+  where you may not be able to store the signals' FFTs in RAM, or even cases
+  where you cannot even store the signals themselves in RAM, i.e., when you have
+  to memory-map them from disk.
+
+  `x` and `h` can be multidimensional (1D and 2D are extensively tested), but
+  must have the same rank, i.e., `len(x.shape) == len(h.shape)`. Both must be
+  real (FIXME).
+
+  `size` is a list of integers that specifies the sizes of the output that will
+  be computed in each iteration of the overlap-save algorithm. It must be the
+  same length as `x.shape` and `h.shape`. If not provided, defaults to
+  `[4 * x for x in h.shape]`, i.e., will break up the output into chunks whose
+  size is governed by the size of `h`.
+
+  `nfft` is a list of integers that specifies the size of the FFT to be used.
+  It's length must be equal to the length of `size`. Each element of this list
+  must be large enough to store the *linear* convolution, i.e.,
+  `all([nfft[i] >= size[i] + h.shape[i] - 1 for i in range(len(nfft))])`
+  must be `True`. Set this to a multiple of small prime factors, which is the
+  default.
+
+  If provided, the results will be stored in `out`. This is useful for
+  memory-mapped outputs, e.g.
+
+  If not provided, `rfftn` and `irfftn` default to those in `numpy.fft`. Other
+  implementations matching Numpy's, such as PyFFTW, will also work.
+
+  By default, `mode='constant'` assumes elements of `x` outside its boundaries
+  are 0, which matches the textbook definition of convolution. `mode='reflect'`
+  is also supported. It should be straightforward to add support for other modes
+  supported by `np.pad`. Keyword arguments in `**kwargs` are passed to `np.pad`.
   """
   assert len(x.shape) == len(h.shape)
   size = size or [4 * x for x in h.shape]
