@@ -6,6 +6,7 @@ Features:
 - 1D and 2D (both tested) and higher (untested) arrays
   - (Currently unsupported is convolving different-dimensional signals)
 - Memory-mapped input/outputs fully supported (and tested)
+- Supports alternative FFT engines such as PyFFTW
 - Relatively straightforward to paralellize each step of the algorithm
 - Extensively unit-tested
 
@@ -45,14 +46,17 @@ from array_range import array_range
 from typing import List
 
 
-def prepareh(h, nfft: List[int]):
+def prepareh(h, nfft: List[int], rfftn=None):
   """Pre-process a filter array
   
   Given a real filter array `h` and the length of the FFT `nfft`,
   returns the frequency-domain array. Needs to be computed
   only once before all steps of the overlap-save algorithm run.
+
+  `rfftn` defaults to `numpy.fft.rfftn` and may be overridden.
   """
-  return np.conj(np.fft.rfftn(np.flip(h), nfft))
+  rfftn = rfftn or np.fft.rfftn
+  return np.conj(rfftn(np.flip(h), nfft))
 
 
 def slice2range(s: slice):
@@ -104,6 +108,8 @@ def olsStep(x,
             lengths: List[int],
             nfft: List[int],
             nh: List[int],
+            rfftn=None,
+            irfftn=None,
             mode='constant',
             **kwargs):
   """Implements a single step of the overlap-save algorithm
@@ -122,6 +128,9 @@ def olsStep(x,
   The lists `starts`, `lengths`, `nft`, and `nh` are all required to be the same
   length, matching the number of dimensions of `x` and `hfftconj`.
 
+  If `rfftn` and `irfftn` are not provided, `numpy.fft`'s functions are used.
+  This can be overridden to use, e.g., PyFFTW's multi-threaded alternatives.
+
   `mode` and `**kwargs` are passed to `numpy.pad`, see
   https://docs.scipy.org/doc/numpy/reference/generated/numpy.pad.html
   The default, `'constant'` will treat values outside the bounds of `x` as
@@ -137,19 +146,27 @@ def olsStep(x,
   assert len(x.shape) == len(nfft) and len(x.shape) == len(nh)
   lengths = np.minimum(np.array(lengths), x.shape - np.array(starts))
   assert np.all(np.array(nfft) >= lengths + np.array(nh) - 1)
+
+  rfftn = rfftn or np.fft.rfftn
+  irfftn = irfftn or np.fft.irfftn
+
   border = np.array(nh) // 2
   slices = tuple(
       slice(start - border, start + length + nh - 1 - border)
       for (start, length, nh, border) in zip(starts, lengths, nh, border))
   xpart = padEdges(x, slices, mode=mode, **kwargs)
-  output = np.fft.irfftn(np.fft.rfftn(xpart, nfft) * hfftconj, nfft)
+  output = irfftn(rfftn(xpart, nfft) * hfftconj, nfft)
   return output[tuple(slice(0, s) for s in lengths)]
 
 
-def ols(x, h, size=None, nfft=None, out=None, mode='constant', **kwargs):
+def ols(x, h, size=None, nfft=None, out=None, rfftn=None, irfftn=None, mode='constant', **kwargs):
+  """Perform overlap-save fast-convolution
+  """
   assert len(x.shape) == len(h.shape)
   size = size or [4 * x for x in h.shape]
   nfft = nfft or [nextprod([2, 3, 5, 7], size + nh - 1) for size, nh in zip(size, h.shape)]
+  rfftn = rfftn or np.fft.rfftn
+  irfftn = irfftn or np.fft.irfftn
   assert len(x.shape) == len(size)
   assert len(x.shape) == len(nfft)
 
@@ -158,5 +175,14 @@ def ols(x, h, size=None, nfft=None, out=None, mode='constant', **kwargs):
     out = np.zeros(x.shape, dtype=x.dtype)
 
   for tup in array_range([0 for _ in out.shape], out.shape, size):
-    out[tup] = olsStep(x, hpre, [s.start for s in tup], size, nfft, h.shape, mode=mode, **kwargs)
+    out[tup] = olsStep(
+        x,
+        hpre, [s.start for s in tup],
+        size,
+        nfft,
+        h.shape,
+        rfftn=rfftn,
+        irfftn=irfftn,
+        mode=mode,
+        **kwargs)
   return out
