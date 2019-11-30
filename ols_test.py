@@ -4,6 +4,26 @@ from ols import prepareh, olsStep, ols
 from nextprod import nextprod
 
 
+def testReflect():
+  nx = 21
+  nh = 7
+  x = np.random.randint(-30, 30, size=(nx, nx)) + 1.0
+  h = np.random.randint(-20, 20, size=(nh, nh)) + 1.0
+  y = ols(x, h)
+  gold = fftconvolve(x, h, mode='same')
+  assert np.allclose(gold, y)
+
+  px, py = nx // 2, nx // 3
+  x0pad = np.pad(x, [(py, 0), (px, 0)], mode='constant')
+  y0pad = ols(x0pad, h)
+  assert np.allclose(y, y0pad[py:py + nx, px:px + nx])
+
+  xpadRef = np.pad(x, [(py, 0), (px, 0)], mode='reflect')
+  ypadRef = ols(xpadRef, h)
+  yRef = ols(x, h, [3, 3], mode='reflect')
+  assert np.allclose(yRef, ypadRef[py:py + nx, px:px + nx])
+
+
 def testOls():
 
   def testouter(nx, nh):
@@ -67,5 +87,6 @@ def test1d():
 
 
 if __name__ == '__main__':
+  testReflect()
   test1d()
   testOls()
