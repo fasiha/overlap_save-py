@@ -60,16 +60,38 @@ def slice2range(s: slice):
   return range(s.start, s.stop, s.step or 1)
 
 
+def maxsReflect(x, slices):
+  starts = [
+      0 if s.start < 0 else np.min([s.start, xdim - (s.stop - xdim)])
+      for (s, xdim) in zip(slices, x.shape)
+  ]
+  stops = [
+      xdim if s.stop > xdim else np.max([s.stop, -s.start]) for (s, xdim) in zip(slices, x.shape)
+  ]
+  maxs = tuple(slice(lo, hi) for (lo, hi) in zip(starts, stops))
+  return maxs
+
+
+def maxsConstant(x, slices):
+  return tuple(
+      slice(np.maximum(0, s.start), np.minimum(xdim, s.stop)) for (s, xdim) in zip(slices, x.shape))
+
+
 def padEdges(x, slices, mode='constant', **kwargs):
   """Wrapper around `np.pad`
 
   This wrapper seeks to call `np.pad` with the smallest amount of data as needed, as dictated by `slices`.
   """
-  if all(map(lambda s: s.start >= 0, slices)):
+  if all(map(lambda s, xdim: s.start >= 0 and s.stop <= xdim, slices, x.shape)):
     return x[slices]
-  maxs = tuple(slice(0, max(np.abs(s.start), np.abs(s.stop))) if s.start < 0 else s for s in slices)
-  beforeAfters = [(-s.start if s.start < 0 else 0, np.maximum(0, s.stop - xdim))
+  beforeAfters = [(-s.start if s.start < 0 else 0, s.stop - xdim if s.stop > xdim else 0)
                   for (s, xdim) in zip(slices, x.shape)]
+  if mode == 'constant':
+    maxs = maxsConstant(x, slices)
+  elif mode == 'reflect':
+    maxs = maxsReflect(x, slices)
+  else:
+    assert False
   xpadded = np.pad(x[maxs], beforeAfters, mode=mode, **kwargs)
   # we now have an array that's padded just right to the top/left but maybe too big bottom/right
   firsts = tuple(slice(0, len(slice2range(s))) for s in slices)
@@ -104,10 +126,11 @@ def olsStep(x,
   https://docs.scipy.org/doc/numpy/reference/generated/numpy.pad.html
   The default, `'constant'` will treat values outside the bounds of `x` as
   constant, and specifically zero. This matches the standard definition of
-  convolution. However, other useful alternatives might be:
+  convolution. However, other useful alternatives are supported:
   - `'reflect'` where the input `x` is reflected infinitely in all dimensions or 
-  - `'wrap'` where the input is assumed to be toroidal: moving off the edge in
-    one direction makes you reappear on the opposite edge.
+
+  N.B. These are the only modes supported by this module. Others are
+  *UNSUPPORTED*.
   """
   assert len(x.shape) == len(hfftconj.shape)
   assert len(x.shape) == len(starts) and len(x.shape) == len(lengths)

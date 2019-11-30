@@ -13,15 +13,17 @@ def testReflect():
   gold = fftconvolve(x, h, mode='same')
   assert np.allclose(gold, y)
 
-  px, py = nx // 2, nx // 3
-  x0pad = np.pad(x, [(py, 0), (px, 0)], mode='constant')
+  px, py = 24, 28
+  x0pad = np.pad(x, [(py, py), (px, px)], mode='constant')
   y0pad = ols(x0pad, h)
   assert np.allclose(y, y0pad[py:py + nx, px:px + nx])
 
-  xpadRef = np.pad(x, [(py, 0), (px, 0)], mode='reflect')
+  xpadRef = np.pad(x, [(py, py), (px, px)], mode='reflect')
   ypadRef = ols(xpadRef, h)
-  yRef = ols(x, h, [3, 3], mode='reflect')
-  assert np.allclose(yRef, ypadRef[py:py + nx, px:px + nx])
+  for sizex in [2, 3, 4, 7, 8, 9, 10]:
+    for sizey in [2, 3, 4, 7, 8, 9, 10]:
+      yRef = ols(x, h, [sizey, sizex], mode='reflect')
+      assert np.allclose(yRef, ypadRef[py:py + nx, px:px + nx])
 
 
 def testOls():
