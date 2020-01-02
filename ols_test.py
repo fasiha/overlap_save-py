@@ -4,6 +4,34 @@ from ols import prepareh, olsStep, ols
 from nextprod import nextprod
 
 
+def testPyFFTW_complex():
+  nx = 21
+  nh = 7
+  x = np.random.randint(-30, 30, size=(nx, nx)) + 1.0 + 0j
+  h = np.random.randint(-20, 20, size=(nh, nh)) + 1.0 + 0j
+  gold = fftconvolve(x, h, mode='same')
+
+  y = ols(x, h, rfftn=np.fft.fftn, irfftn=np.fft.ifftn)
+  # Establish baseline
+  assert np.allclose(gold, y)
+  # Verify PyFFTW
+  import pyfftw.interfaces.numpy_fft as fftw
+
+  # standard, 1 thread
+  y2 = ols(x, h, rfftn=fftw.fftn, irfftn=fftw.ifftn)
+  assert np.allclose(gold, y2)
+
+  # 2 threads
+  def fft(*args, **kwargs):
+    return fftw.rfftn(*args, **kwargs, threads=2)
+
+  def ifft(*args, **kwargs):
+    return fftw.irfftn(*args, **kwargs, threads=2)
+
+  y3 = ols(x, h, rfftn=fft, irfftn=ifft)
+  assert np.allclose(gold, y3)
+
+
 def testPyFFTW():
   nx = 21
   nh = 7
