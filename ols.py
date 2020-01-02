@@ -212,7 +212,7 @@ def ols(x, h, size=None, nfft=None, out=None, rfftn=None, irfftn=None, mode='con
   assert len(x.shape) == len(size)
   assert len(x.shape) == len(nfft)
 
-  hpre = prepareh(h, nfft)
+  hpre = prepareh(h, nfft, rfftn=rfftn)
   if out is None:
     out = np.zeros(x.shape, dtype=x.dtype)
 
