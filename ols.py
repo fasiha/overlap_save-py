@@ -5,6 +5,7 @@ Features:
 
 - 1D and 2D (both tested) and higher (untested) arrays
   - (Currently unsupported is convolving different-dimensional signals)
+- Real and complex arrays
 - Memory-mapped input/outputs fully supported (and tested)
 - Supports alternative FFT engines such as PyFFTW
 - Supports reflect-mode (signal assumed to reflect infinitely, instead of 0
@@ -14,7 +15,6 @@ Features:
 
 When it can be used as a drop-in replacement for `fftconvolve`:
 
-- when you have real inputs (complex support should be straightforward: replace `rfft` with `fft`)
 - when you call `fftconvolve` with `mode='same'` and `axes=None`
 - [See docs](https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.fftconvolve.html)
 
@@ -58,7 +58,7 @@ def prepareh(h, nfft: List[int], rfftn=None):
   `rfftn` defaults to `numpy.fft.rfftn` and may be overridden.
   """
   rfftn = rfftn or np.fft.rfftn
-  return np.conj(rfftn(np.flip(h), nfft))
+  return np.conj(rfftn(np.flip(np.conj(h)), nfft))
 
 
 def slice2range(s: slice):
@@ -177,8 +177,7 @@ def ols(x, h, size=None, nfft=None, out=None, rfftn=None, irfftn=None, mode='con
   to memory-map them from disk.
 
   `x` and `h` can be multidimensional (1D and 2D are extensively tested), but
-  must have the same rank, i.e., `len(x.shape) == len(h.shape)`. Both must be
-  real (FIXME).
+  must have the same rank, i.e., `len(x.shape) == len(h.shape)`.
 
   `size` is a list of integers that specifies the sizes of the output that will
   be computed in each iteration of the overlap-save algorithm. It must be the

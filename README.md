@@ -4,6 +4,7 @@ Features:
 
 - 1D and 2D (both tested) and higher (untested) arrays
   - (Currently unsupported is convolving different-dimensional signals)
+- Real and complex arrays
 - Memory-mapped input/outputs fully supported (and tested)
 - Supports alternative FFT engines such as PyFFTW
 - Supports reflect-mode (signal assumed to reflect infinitely, instead of 0 outside its support; useful for avoiding edge effects)
@@ -12,7 +13,6 @@ Features:
 
 When it can be used as a drop-in replacement for `fftconvolve`:
 
-- when you have real inputs (complex support should be straightforward: replace `rfft` with `fft`)
 - when you call `fftconvolve` with `mode='same'` and `axes=None`
 - [See docs](https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.fftconvolve.html)
 
@@ -48,7 +48,7 @@ As mentioned in the module docstring, the output of this function will be within
 
 However, rather than computing three potentially-large FFTs (one for `x`, one for `h`, and an inverse FFT for their product), the overlap-save algorithm performs a sequence of smaller FFTs. This makes it appropriate for situations where you may not be able to store the signals' FFTs in RAM, or even cases where you cannot even store the signals themselves in RAM, i.e., when you have to memory-map them from disk.
 
-`x` and `h` can be multidimensional (1D and 2D are extensively tested), but must have the same rank, i.e., `len(x.shape) == len(h.shape)`. Both must be real (FIXME).
+`x` and `h` can be multidimensional (1D and 2D are extensively tested), but must have the same rank, i.e., `len(x.shape) == len(h.shape)`.
 
 `size` is a list of integers that specifies the sizes of the output that will be computed in each iteration of the overlap-save algorithm. It must be the same length as `x.shape` and `h.shape`. If not provided, defaults to `[4 * x for x in h.shape]`, i.e., will break up the output into chunks whose size is governed by the size of `h`.
 
@@ -59,3 +59,21 @@ If provided, the results will be stored in `out`. This is useful for memory-mapp
 If not provided, `rfftn` and `irfftn` default to those in `numpy.fft`. Other implementations matching Numpy's, such as PyFFTW, will also work.
 
 By default, `mode='constant'` assumes elements of `x` outside its boundaries are 0, which matches the textbook definition of convolution. `mode='reflect'` is also supported. It should be straightforward to add support for other modes supported by `np.pad`. Keyword arguments in `**kwargs` are passed to `np.pad`.
+
+**Development** To simply develop this repo, instead of installing it, run the following (uses `venv` with Python 3—adapt for virtualenv if you are on Python 2):
+```shell
+$ git clone https://github.com/fasiha/overlap_save-py.git
+$ cd overlap_save-py                  # clone the repo and change to its directory
+$ git checkout -b MY-DEV-BRANCH       # check out a new git branch
+$ python -m venv .                    # set up a venv (one-time)
+$ source bin/activate                 # activate venv
+$ pip install -r requirements.txt     # install module requirements
+$ pip install -r requirements-dev.txt # install requirements for tests
+$ nosetests -w .                      # run all tests. You may have to re-activate venv
+```
+
+**Changelog**
+
+*1.1.1* full complex support (thanks Matteo Bachetti! [!1](https://github.com/fasiha/overlap_save-py/pull/1) & [!2](https://github.com/fasiha/overlap_save-py/pull/2))
+
+*1.1.0* PyFFTW and `mirror` mode added

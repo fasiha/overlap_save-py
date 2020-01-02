@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='overlap_save',
-    version='1.1.0',
+    version='1.1.1',
     author='Ahmed Fasih',
     author_email='ahmed@aldebrn.me',
     description="Overlap-save method for fast convolution, like Scipy's fftconvolve, but memory-efficient",
