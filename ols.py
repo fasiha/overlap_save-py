@@ -58,7 +58,8 @@ def prepareh(h, nfft: List[int], rfftn=None):
   `rfftn` defaults to `numpy.fft.rfftn` and may be overridden.
   """
   rfftn = rfftn or np.fft.rfftn
-  return np.conj(rfftn(np.flip(np.conj(h)), nfft))
+  axes = np.arange(len(h.shape))
+  return np.conj(rfftn(np.flip(np.conj(h), axis=axes), nfft))
 
 
 def slice2range(s: slice):
