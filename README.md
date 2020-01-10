@@ -74,6 +74,8 @@ $ nosetests -w .                      # run all tests. You may have to re-activa
 
 **Changelog**
 
+*1.1.2* support for `numpy<1.15` (where [`numpy.flip`](https://docs.scipy.org/doc/numpy/reference/generated/numpy.flip.html) had more limited behavior)—thanks again Matteo!
+
 *1.1.1* full complex support (thanks Matteo Bachetti! [!1](https://github.com/fasiha/overlap_save-py/pull/1) & [!2](https://github.com/fasiha/overlap_save-py/pull/2))
 
 *1.1.0* PyFFTW and `mirror` mode added
